@@ -1,41 +1,76 @@
-// import React, { useState, useEffect } from 'react';
+// import React, { useState, useEffect, useMemo } from 'react';
 // import { User } from '../types';
 // import { fetchUsers, deleteUserApi, addUserApi, updateUserApi } from '../api/usersApi';
 // import UserTable from '../components/UserTable.js';
 // import UserDetailsModal from '../components/UserDetailsModal';
 // import AddUserModal from '../components/AddUserModal';
+// import DeleteConfirmModal from '../components/DeleteConfirmModal.js';
+// import { useAuth } from '../context/AuthContext';
 
 // function UserManagementPage() {
   
 //   const [users, setUsers] = useState<User[]>([]);
 //   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 //   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+//   const [searchTerm, setSearchTerm] = useState('');
+//   const { user: currentUser } = useAuth();
+  
+//   const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
 //   useEffect(() => {
-//     loadUsers();
+//     loadUsers(); 
 //   }, []);
-
+  
 //   const loadUsers = async () => {
 //     const data = await fetchUsers();
 //     setUsers(data);
 //   };
 
+
+//   const filteredUsers = useMemo(() => {
+//     return users
+//       .filter(user => user._id !== currentUser?._id)
+//       .filter(user => 
+//         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+//         user.email.toLowerCase().includes(searchTerm.toLowerCase())
+//       );
+//   }, [users, searchTerm, currentUser]);
+
 //   const handleDeleteUser = async (id: string) => {
-//     await deleteUserApi(id);
-//     loadUsers();
+//     setUserToDelete(id);
 //   };
 
-//   const handleAddUser = async (userData: Omit<User, '_id'>) => {
-//     await addUserApi(userData);
-//     loadUsers();
+//   const confirmDelete = async () => {
+//     if (userToDelete) {
+//         await deleteUserApi(userToDelete);
+//         setUsers(prevUsers => prevUsers.filter(user => user._id !== userToDelete));
+//         setUserToDelete(null);
+//     }
+//   };
+
+//   const handleAddUser = async (userData: any) => {
+//     const newUser = await addUserApi(userData);
+//     setUsers(prevUsers => [...prevUsers, newUser]); 
 //     setIsAddModalOpen(false);
 //   };
 
 //   const handleUpdateUser = async (id: string, updates: Partial<User>) => {
-//     await updateUserApi(id, updates);
-//     loadUsers();
-//     if (selectedUser && selectedUser._id === id) {
-//         setSelectedUser(prev => ({ ...prev!, ...updates }));
+//     try {
+//         const updatedUserFromServer = await updateUserApi(id, updates);
+        
+//         setUsers(prevUsers => 
+//           prevUsers.map(user => 
+//             user._id === id ? updatedUserFromServer : user
+//           )
+//         );
+
+//         if (selectedUser && selectedUser._id === id) {
+//             setSelectedUser(updatedUserFromServer); 
+//         }
+
+//     } catch (error) {
+//         console.error("Failed to update user:", error);
+//         loadUsers(); 
 //     }
 //   };
 
@@ -50,9 +85,19 @@
 //           Add User
 //         </button>
 //       </header>
+      
+//       <div className="mb-4">
+//         <input
+//           type="text"
+//           placeholder="Search users by name or email..."
+//           className="border p-2 w-full rounded shadow-sm"
+//           value={searchTerm}
+//           onChange={(e) => setSearchTerm(e.target.value)}
+//         />
+//       </div>
 
 //       <UserTable 
-//         users={users} 
+//         users={filteredUsers} 
 //         deleteUser={handleDeleteUser} 
 //         openDetails={setSelectedUser} 
 //         updateUser={handleUpdateUser} 
@@ -72,77 +117,121 @@
 //           addUser={handleAddUser} 
 //         />
 //       )}
+
+//       {userToDelete && (
+//         <DeleteConfirmModal
+//           onClose={() => setUserToDelete(null)}
+//           onConfirm={confirmDelete}
+//         />
+//       )}
 //     </div>
 //   );
 // }
 
 // export default UserManagementPage;
-// src/pages/UserManagement.tsx
 
-import React, { useState, useEffect } from 'react';
+// C:\Users\Surya.Singh\OneDrive - Parkar\Desktop\team_project1\project_mgmt\frontend\src\pages\UserManagement.tsx
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { User } from '../types';
 import { fetchUsers, deleteUserApi, addUserApi, updateUserApi } from '../api/usersApi';
 import UserTable from '../components/UserTable.js';
 import UserDetailsModal from '../components/UserDetailsModal';
 import AddUserModal from '../components/AddUserModal';
-// import { useAuth } from '../context/AuthContext'; // If you use auth guards/timing, uncomment this
+import DeleteConfirmModal from '../components/DeleteConfirmModal.js';
+import { useAuth } from '../context/AuthContext';
+import { toast } from 'react-toastify';
+
 
 function UserManagementPage() {
   
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // const { user, isLoading } = useAuth(); // If used for the timing fixes, uncomment this line
+  const [searchTerm, setSearchTerm] = useState('');
+  const { user: currentUser } = useAuth();
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  
+  // State for pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10); // Users per page (fixed limit for simplicity)
 
+  // Make loadUsers a useCallback so it can be used within useEffect dependencies easily
+  const loadUsers = useCallback(async () => {
+    try {
+        // Pass pagination and search terms to the API call
+        const response = await fetchUsers(currentPage, limit, searchTerm); 
+        
+        setUsers(response.data);
+        setCurrentPage(response.currentPage);
+        setTotalPages(response.totalPages);
+        
+    } catch (error) {
+        toast.error("Failed to fetch users.");
+        console.error("Error loading users:", error);
+    }
+  }, [currentPage, limit, searchTerm]); // Depend on pagination state and search term
+
+  // Effect hook runs whenever loadUsers callback changes (which happens when dependencies change)
   useEffect(() => {
-    // Note: If you implement the timing fixes suggested earlier, this useEffect 
-    // should depend on isLoading/user and include error handling.
     loadUsers(); 
-  }, []);
+  }, [loadUsers]);
 
-  const loadUsers = async () => {
-    const data = await fetchUsers();
-    setUsers(data);
-  };
+  // We only filter the current user out on the client side, backend handles search now.
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => user._id !== currentUser?._id);
+  }, [users, currentUser]);
 
   const handleDeleteUser = async (id: string) => {
-    await deleteUserApi(id);
-    // Optimistic delete: filter out the deleted user instantly
-    setUsers(prevUsers => prevUsers.filter(user => user._id !== id));
+    setUserToDelete(id);
   };
 
-  const handleAddUser = async (userData: any /* Use the correct type from AddUserModal.tsx */) => {
-    // Instantly add the returned user to the state here for speed
-    const newUser = await addUserApi(userData);
-    setUsers(prevUsers => [...prevUsers, newUser]); 
+  const confirmDelete = async () => {
+    if (userToDelete) {
+        await deleteUserApi(userToDelete);
+        toast.success("User deleted successfully.");
+        setUserToDelete(null);
+        // After deletion, reload users to refresh pagination count/display
+        loadUsers(); 
+    }
+  };
+
+  const handleAddUser = async (userData: any) => {
+    // const newUser = await addUserApi(userData); // Removed direct state manipulation
+    await addUserApi(userData);
+    toast.success("Member added successfully");
     setIsAddModalOpen(false);
+    // After adding a user, reload users to integrate the new user into the list/pagination
+    loadUsers(); 
   };
 
-  // Use the returned updated user object for instant UI update
   const handleUpdateUser = async (id: string, updates: Partial<User>) => {
     try {
-        // Capture the specific updated user object returned from the API call
         const updatedUserFromServer = await updateUserApi(id, updates);
         
-        // Instantly update the main users list state in memory
         setUsers(prevUsers => 
           prevUsers.map(user => 
             user._id === id ? updatedUserFromServer : user
           )
         );
 
-        // Also update the selectedUser state if the modal is open, to reflect changes immediately
         if (selectedUser && selectedUser._id === id) {
-            // Use the full object from the server response, which has the correct populated role ID/object
             setSelectedUser(updatedUserFromServer); 
         }
-        
-        // We no longer need the slow 'loadUsers()' call here because state is updated instantly
+        toast.success("User updated successfully.");
 
     } catch (error) {
         console.error("Failed to update user:", error);
-        // Optional: Show an error notification here
-        loadUsers(); // Fallback to full refresh if an error occurs
+        toast.error("Failed to update user.");
+        loadUsers(); 
+    }
+  };
+
+  // Pagination Handler
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+        setCurrentPage(page);
     }
   };
 
@@ -157,14 +246,49 @@ function UserManagementPage() {
           Add User
         </button>
       </header>
+      
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search users by name or email..."
+          className="border p-2 w-full rounded shadow-sm"
+          value={searchTerm}
+          // When search term changes, reset to page 1
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setCurrentPage(1); 
+          }}
+        />
+      </div>
 
       <UserTable 
-        users={users} 
+        users={filteredUsers} 
         deleteUser={handleDeleteUser} 
         openDetails={setSelectedUser} 
         updateUser={handleUpdateUser} 
       />
+      
+      {/* Pagination Controls UI (Minimal Tailwind implementation) */}
+      <div className="flex justify-between items-center mt-6">
+        <button
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded disabled:opacity-50"
+        >
+          Previous
+        </button>
+        <span>Page {currentPage} of {totalPages}</span>
+        <button
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
 
+
+      {/* Modals remain below */}
       {selectedUser && (
         <UserDetailsModal 
           user={selectedUser} 
@@ -177,6 +301,13 @@ function UserManagementPage() {
         <AddUserModal 
           onClose={() => setIsAddModalOpen(false)} 
           addUser={handleAddUser} 
+        />
+      )}
+
+      {userToDelete && (
+        <DeleteConfirmModal
+          onClose={() => setUserToDelete(null)}
+          onConfirm={confirmDelete}
         />
       )}
     </div>

@@ -8,6 +8,8 @@ import TaskManagement from './pages/TaskManagement';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import Home from './pages/Home';
+import { ToastContainer,toast } from 'react-toastify'; 
+import "react-toastify/dist/ReactToastify.css";
 
 // Layout component handles sidebar visibility and routing based on login status
 function AppLayout() {
@@ -20,7 +22,7 @@ function AppLayout() {
     if (user) {
          return (
             <div className="flex h-screen overflow-hidden bg-gray-100">
-                
+                <ToastContainer />
                 <Sidebar isOpen={isSidebarOpen} />
                 
                 {/* A single fixed button positioned at the middle-left edge, handling both show/hide */}

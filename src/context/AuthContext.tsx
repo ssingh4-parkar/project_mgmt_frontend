@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // FIX 1: Manually set isLoading to false after successful login 
         // to unblock routing guards immediately.
         setIsLoading(false); 
-
+     
         navigate('/home');
     };
     

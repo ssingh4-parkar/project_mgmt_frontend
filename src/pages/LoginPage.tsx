@@ -11,7 +11,7 @@ function LoginPage() {
     e.preventDefault(); 
     setError('');
     try { 
-        await login(email, password); 
+        await login(email, password);
     } 
     catch(err){
         setError('Login failed: Invalid credentials');
